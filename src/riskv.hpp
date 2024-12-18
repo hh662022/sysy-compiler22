@@ -35,7 +35,6 @@ void Visit(const koopa_raw_function_t &func) {
     std::cout << func->name + 1 << ":\n";
     assert(func->bbs.kind == KOOPA_RSIK_BASIC_BLOCK);
 
-    // calculate FrameSize (the stack frame) and StackTop
     calFrameSize(func);
 
     if (FrameSize > 0 && FrameSize <= 2048){
@@ -104,7 +103,7 @@ RegInfo Visit(const koopa_raw_value_t &value) {
             }
         }
         CurValue = PreValue;
-        return RegInfoMap[value]; //VarRegMap[value]
+        return RegInfoMap[value]; 
     }
     RegInfo lastReg = RegInfo(-1, -1);
 
