@@ -1,6 +1,3 @@
-// // unique_ptr cannot be passed as a parameter. Use reference instead;
-// // 函数 printInitList() 递归地打印出数组的初始值. 
-// // Note: this is all wrong!!!!!
 // void printInitVals_old(BaseASTPtr &initVal, vector<int32_t> offset){
 //     if(!initVal){
 //         std::cout << "zeroinit";
