@@ -1,8 +1,3 @@
-// 当前状态: lv9 case 6 yyparse出错. 需要检查词法/语法分析相关. 
-// 另外, 前面的cases中, 初始化的值很奇怪, 有些该初始化为0的值被初始化成其他值了, 尚不知道原因
-// 可能是sysy.y到AST的时候, 某些结构的AST出错? 但是并没有报段错误, 只是分析失败而已.
-
-
 %code requires {
   #include <memory>
   #include <string>
@@ -36,13 +31,12 @@ using namespace std;
   MulVecType *mul_val;
 }
 
-// lexer 返回的所有 token 种类的声明
-// 注意 IDENT 和 INT_CONST 会返回 token 的值, 分别对应 str_val 和 int_val
+// 所有 token 种类的声明
 %token INT RETURN CONST VOID IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT UNARYOP MULOP ADDOP RELOP EQOP LANDOP LOROP
 %token <int_val> INT_CONST
 
-// 非终结符的类型定义
+// 非终结符类型
 %type <ast_val> FuncDef Block BlockItem Stmt ComplexStmt OpenStmt ClosedStmt 
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal
 %type <ast_val> Exp ConstExp PrimaryExp UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp
@@ -88,7 +82,7 @@ CompUnitList
   }
   ;
 
-// Note: $n = the nth parameter
+
 FuncDef
   : Type IDENT '(' ')' Block {
     auto func_def = new FuncDefAST();
@@ -370,7 +364,7 @@ Block
   }
   | '{' '}' {
     $$ = new BlockAST();
-    // Do nothing
+    
   }
   ;
 
@@ -388,15 +382,13 @@ BlockItems
   ;
 
 BlockItem
-  : Decl {
-    // std::cout << "// BlockItem-Decl\n"; // for debug
+  : Decl {    
     auto block_item = new BlockItemAST();
     block_item->def = BlockItemAST::def_decl;
     block_item->blockItem = BaseASTPtr($1);
     $$ = block_item;
   }
   | ComplexStmt {
-    // std::cout << "// BlockItem-stmt\n"; // for debug
     auto block_item = new BlockItemAST();
     block_item->def = BlockItemAST::def_stmt;
     block_item->blockItem = BaseASTPtr($1);
@@ -734,8 +726,6 @@ LOrExp
 
 %%
 
-// 定义错误处理函数, 其中第二个参数是错误信息
-// parser 如果发生错误 (例如输入的程序出现了语法错误), 就会调用这个函数
 void yyerror(BaseASTPtr &ast, const char *s) {
     fprintf(stderr, "ERROR\n");
 }
