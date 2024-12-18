@@ -317,7 +317,6 @@ VarDef
   }
   ;
 
-// TODO: change all vector sysy definitions about '{' '}'
 InitVal
   : Exp {
     auto init_val = new InitValAST();
