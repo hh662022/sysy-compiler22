@@ -1,64 +1,68 @@
 #pragma once
 #include"AST_util.hpp"
 
-static const std::string whileEntryString = "\%_while_entry_";
-static const std::string whileBodyString = "\%_while_body_";
-static const std::string whileEndString = "\%_while_end_";
+// Variants for in AST generation.
+// Note: Linking error occurs if I put them in AST_util.hpp, even with #pragma once.
+
 static const std::string thenString = "\%_then_";
 static const std::string elseString = "\%_else_";
 static const std::string endString = "\%_end_"; 
+// Note: there is a case with a variable named "end".
+static const std::string whileEntryString = "\%_while_entry_";
+static const std::string whileBodyString = "\%_while_body_";
+static const std::string whileEndString = "\%_while_end_";
 
+static int32_t varNum = 0;
 static int32_t ifElseNum = 0, whileNum = 0;
 static bool isRetInt = 1;
-static int32_t varArrayNum = 0, constArrayNum = 0, int32_t varNum = 0;
+static int32_t varArrayNum = 0, constArrayNum = 0;
 
-static std::unordered_map<std::string, int32_t> ArrayDimension; 
-static std::unordered_map<std::string, bool> isArrayGlobal; 
-static std::vector<int32_t> ArrayInitVals;
 static std::vector<SymTabType> symTabs;
-static std::unordered_map<std::string, bool> isParam; 
-static std::unordered_map<std::string, int32_t> symNameCount; 
-static std::vector<int32_t> whileTab; 
-static std::unordered_map<std::string, FuncInfo> FuncInfoList; 
-
+static std::unordered_map<std::string, bool> isParam; // Is this symbol a parameter name?
+static std::unordered_map<std::string, int32_t> symNameCount; // Map an ident to its count
+static std::vector<int32_t> whileTab; // Recording current while layers
+static std::unordered_map<std::string, FuncInfo> FuncInfoList; // Map a function name to its
+static std::unordered_map<std::string, int32_t> ArrayDimension; // The dimension of a given array.
+static std::unordered_map<std::string, bool> isArrayGlobal; // To exclude array parameter
+static std::vector<int32_t> ArrayInitVals;
 
 static inline SymTabEntry symTabs_lookup(std::string lval);
 static std::string getNewSymName();
 static void libFuncDecl();
+
+static std::string getArrayType(const std::vector<int32_t> *lens, int32_t d);
+static int32_t getArraySize(std::vector<int32_t> offset, int32_t now_num);
 static std::string ArrayInit(std::vector<int32_t> lens, std::string lastSymName, int32_t d, int32_t isVarDef);
 static void printArrayInit(std::vector<int32_t> lens, int32_t d, int32_t isVarDef);
 static std::vector<int32_t> getProduct(std::vector<int32_t> vec);
-static std::string getArrayType(const std::vector<int32_t> *lens, int32_t d);
-static int32_t getArraySize(std::vector<int32_t> offset, int32_t now_num);
 
-
-// 基类
+// Base class for all ASTs
 class BaseAST {
     public:
-    int32_t arrayDimension = -1; 
-    bool isEmptyInitArray = 0; 
+    bool isEmptyInitArray = 0; // For InitValAST. If the Initialization is like "int[10] a = {}".
+    int32_t arrayDimension = -1; // For FuncFParam. Set to the array dimension if the parameter is an array
+
     virtual ~BaseAST() = default;
 
+    virtual std::string Dump() const{ assert(0); return 0; }
+    virtual std::string DumpArray() const{ assert(0); return 0; } // called in Dump(), for lv9
+    virtual std::string DumpGlobal() const{ assert(0); return ""; }
+    virtual std::string DumpGlobalArray() const{ assert(0); return ""; }
     virtual int32_t CalValue() const{ assert(0); return -1; }
     virtual std::string GetIdent() const{ assert(0); return ""; }
     virtual std::string GetType() const{ assert(0); return ""; }
     virtual std::string TypeOfAST() const{ return ""; }
-    virtual std::string Dump() const{ assert(0); return 0; }
-    virtual std::string DumpArray() const{ assert(0); return 0; } 
-    virtual std::string DumpGlobal() const{ assert(0); return ""; }
-    virtual std::string DumpGlobalArray() const{ assert(0); return ""; }
-    
     virtual std::vector<int32_t> GetArrayInitVals(std::vector<int32_t>) const{ 
         assert(0); return std::vector<int32_t>(); }
     virtual bool GetIsArray() const { assert(0); return 0;}
 };
 
 class CompUnitAST : public BaseAST {
-    public:        
-        MulVecType decls;
+    public:
         MulVecType funcDefs;
+        MulVecType decls;
         std::string Dump() const override {
-            libFuncDecl(); 
+            libFuncDecl(); // Generate declaration for library functions
             SymTabType globalSymTab;
             symTabs.push_back(globalSymTab);
             for (auto&& it : decls)
@@ -72,16 +76,18 @@ class CompUnitAST : public BaseAST {
 
 class FuncDefAST : public BaseAST {
     public:
+        std::string funcType;
         std::string ident;
         BaseASTPtr block;
         MulVecType funcFParams;
-        std::string funcType;
 
         std::string Dump() const override {
+            // std::string funcName = "@" + ident;
             FuncInfo funcInfo;
             funcInfo.retType = funcType;
             std::cout << "fun @" << ident << "(";
 
+            // for (int32_t i = 0; i < 0; i++){ // for debug
             for (int32_t i = 0; i < funcFParams.size(); i++){
                 ParamInfo paramInfo;
                 paramInfo.ident = funcFParams[i]->GetIdent();
@@ -129,9 +135,9 @@ class FuncDefAST : public BaseAST {
 class FuncFParamAST : public BaseAST {
     public:
         enum {def_common, def_array} def;
+        std::string bType;
         std::string ident;
         MulVecType constExpArray;
-        std::string bType;
 
         std::string Dump() const override{
             if(symNameCount.count(ident) == 0){
@@ -148,6 +154,7 @@ class FuncFParamAST : public BaseAST {
             if(def == def_common)
                 return "i32";
             
+            // for lv9
             assert(arrayDimension != -1);
             std::vector<int32_t> lens;
             for(auto &&it : constExpArray)
@@ -197,10 +204,11 @@ class ConstDeclAST : public BaseAST{
 
 class ConstDefAST : public BaseAST{
     public:
-        bool isArray = 0;
         std::string ident;
         BaseASTPtr constInitVal;
         MulVecType constExpArray;
+        bool isArray = 0;
+
         std::string Dump() const override { 
             if(!constExpArray.empty()){// for lv9
                 DumpArray();
@@ -208,6 +216,9 @@ class ConstDefAST : public BaseAST{
             }
             assert(constInitVal->GetIsArray() == 0);
             symTabs.back()[ident] = std::stoi(constInitVal->Dump());    
+            // Note: the following code results in error
+            // auto curSymTab = symTabs.back();
+            // curSymTab[ident] = std::stoi(constInitVal->Dump());    
             return "";
         }
 
@@ -216,6 +227,7 @@ class ConstDefAST : public BaseAST{
                 symTabs.back()[ident] = std::stoi(constInitVal->Dump());    
                 return 0;
             }
+            // for lv9
             std::vector<int32_t> lens;
             for (auto&& it : constExpArray){
                 lens.push_back(std::stoi(it->Dump()));
@@ -248,6 +260,7 @@ class ConstDefAST : public BaseAST{
             std::vector<int32_t> lens;
             for (auto&& it : constExpArray){
                 std::string lastIR = it->Dump();
+                // std::cout << "// in ConstDefAST DumpArray()\n";
                 lens.push_back(std::stoi(lastIR));
             }
             constArrayNum = 0;
@@ -272,6 +285,7 @@ class ConstDefAST : public BaseAST{
             std::vector<int32_t> lens;
             for (auto&& it : constExpArray){
                 std::string lastIR = it->Dump();
+                // std::cout << "// in ConstDefAST DumpArray()\n";
                 lens.push_back(std::stoi(lastIR));
             }
             constArrayNum = 0;
@@ -289,6 +303,7 @@ class ConstDefAST : public BaseAST{
             constArrayNum = 0;
             for (int32_t i = 0; i < lens[0]; i++){
                 std::string nextSymName = getNewSymName();
+                // std::cout << "// ConstDef DumpArray: loop" << i << "\n";
                 std::cout << "\t" << nextSymName << " = getelemptr " << symName << ", " << i << "\n";
                 ArrayInit(lens, nextSymName, 1, 0);
             }
@@ -312,7 +327,7 @@ class ConstInitValAST : public BaseAST{
         }
         std::string GetIdent() const override{ 
             return ident; 
-            
+            // TODO: modify it after supporting list
         }
         int32_t CalValue() const override {
             return subExp->CalValue();
@@ -344,6 +359,7 @@ class ConstInitValAST : public BaseAST{
                         constArrayNum++; 
                         continue;
                     }
+                    // else
                     for (int32_t i = 1; i < lens.size(); i++){
                         if (constArrayNum % lensProduct[i] == 0){
                             std::vector<int32_t> tmp = std::vector<int32_t>(lens.begin() + i, lens.end());
@@ -351,6 +367,8 @@ class ConstInitValAST : public BaseAST{
                             arrayInitVals.insert(arrayInitVals.end(), subArrayInitVals.begin(), subArrayInitVals.end());
                             break;
                         }
+                        // else if (i == lens.size() - 1)
+                        //     assert(false);
                     }
                 }
                 for (int32_t i = arrayInitVals.size(); i < lensProduct[0]; i++){
@@ -392,10 +410,10 @@ class VarDeclAST : public BaseAST{
 
 class VarDefAST : public BaseAST{
     public:
+        std::string ident;
         BaseASTPtr initVal;
         bool isInitialized = 0;
         MulVecType constExpArray;
-        std::string ident;
 
         std::string Dump() const override { 
             if(!constExpArray.empty()) {// for lv9 Arrays
@@ -436,6 +454,7 @@ class VarDefAST : public BaseAST{
                 varArrayNum = 0;
                 for (int32_t i = 0; i < lens[0]; i++){
                     std::string nextSymName = getNewSymName();
+                    // std::cout << "// VardefAST DumpArray: loop" << i << "\n";
                     std::cout << "\t" << nextSymName << " = getelemptr " << symName << ", " << i << "\n";
                     ArrayInit(lens, nextSymName, 1, 1);
                 }
@@ -445,10 +464,12 @@ class VarDefAST : public BaseAST{
 
         int32_t CalValue() const override { 
             if(constExpArray.empty()){
+                // std::cout << "// in VarDefAST CalValue()\n";
                 symTabs.back()[ident] = std::stoi(initVal->Dump());    
                 return 0;
             }
 
+            // for lv9
             std::vector<int32_t> lens;
             for (auto&& it : constExpArray){
                 lens.push_back(std::stoi(it->Dump()));
@@ -472,6 +493,7 @@ class VarDefAST : public BaseAST{
         
         std::string DumpGlobal() const override { 
             if(!constExpArray.empty()){
+                // for lv9
                 return DumpGlobalArray();
             }
 
@@ -508,6 +530,8 @@ class VarDefAST : public BaseAST{
             if (isInitialized && !initVal->isEmptyInitArray){
                 varArrayNum = 0;
                 ArrayInitVals.clear();
+                // Error init values here in case 5 (current hello.c).
+                // GetArrayInitVals() in InitValAST is wrong, or printArrayInit(). Check the recurrence logic later.
                 ArrayInitVals = initVal->GetArrayInitVals(lens);
                 varArrayNum = 0;
                 std::cout << ", ";
@@ -521,9 +545,10 @@ class VarDefAST : public BaseAST{
 
 class InitValAST : public BaseAST{
     public:
+        BaseASTPtr subExp;
         MulVecType initVals;
         bool isArray = 0;
-        BaseASTPtr subExp;
+
         std::string Dump() const override {
             if(!isArray)
                 return subExp->Dump();
@@ -532,17 +557,24 @@ class InitValAST : public BaseAST{
         int32_t CalValue() const override {
             return subExp->CalValue();
         }
-       std::string TypeOfAST() const override{
+        // std::string GetIdent() const override{ 
+        //     return ident; 
+        //     // TODO: modify it after supporting list
+        // }
+        std::string TypeOfAST() const override{
             return "InitVal";
         }
 
+        // 函数 dumpList() 递归地将数组的初始值补全
         std::vector<int32_t> GetArrayInitVals(std::vector<int32_t> lens) const override{
             std::vector<int32_t> arrayInitVals;
             if (lens.size() == 1){
                 for (auto&& it : initVals){
+                    // assert(!it->GetIsArray());
                     varArrayNum++;
                     arrayInitVals.push_back(it->CalValue());
                 }
+                // std::cout << "{size=" << lens[0] - arrayInitVals.size() << "}";
                 for (int32_t i = arrayInitVals.size(); i < lens[0]; i++){
                     varArrayNum++;
                     arrayInitVals.push_back(0); 
@@ -556,6 +588,7 @@ class InitValAST : public BaseAST{
                         varArrayNum++; 
                         continue;
                     }
+                    // else
                     for (int32_t i = 1; i < lens.size(); i++){
                         if (varArrayNum % lensProduct[i] == 0){
                             std::vector<int32_t> tmp = std::vector<int32_t>(lens.begin() + i, lens.end());
@@ -563,9 +596,11 @@ class InitValAST : public BaseAST{
                             arrayInitVals.insert(arrayInitVals.end(), subArrayInitVals.begin(), subArrayInitVals.end());
                             break;
                         }
-                        
+                        // else if (i == lens.size() - 1)
+                        //     assert(false);
                     }
                 }
+                // std::cout << "{size=" << lensProduct[0] - arrayInitVals.size() << "}";
                 for (int32_t i = arrayInitVals.size(); i < lensProduct[0]; i++){
                     arrayInitVals.push_back(0); 
                     varArrayNum++;
@@ -659,7 +694,7 @@ class ComplexStmtAST : public BaseAST{
                     if (subStmtIR != "ret" && subStmtIR != "break" && subStmtIR != "cont")
                         std::cout << "\tjump " << endTag << "\n";
                     std::cout << endTag << ":\n";
-                    
+                    // return subStmtIR;
                 }
                 else if(def == def_ifelse){
                     std::cout << "\tbr " << subExpIR << ", " << thenTag << ", " << elseTag << "\n";
@@ -692,6 +727,7 @@ class StmtAST : public BaseAST {
             if(def == def_lval){
                 std::string lastIR = subExp->Dump();
                 SymTabEntry ste = symTabs_lookup(lVal);
+                // assert(ste.index() == 1);
                 std::cout << "\tstore " << lastIR << ", " << std::get<std::string>(ste) << "\n";
                 return "";
             }
@@ -736,6 +772,7 @@ class StmtAST : public BaseAST {
                         newSymName = tmp;
                     }
                     else{
+                        // std::cout << "// StmtAST Dump()\n";
                         std::cout << "\t" << newSymName << " = getelemptr " << symName << ", " << lastIR << "\n";
                     }
                     symName = newSymName;
@@ -751,6 +788,7 @@ class StmtAST : public BaseAST {
 class ConstExpAST : public BaseAST{
     public:
         BaseASTPtr subExp;
+
         std::string Dump() const override{
             return std::to_string(subExp->CalValue());
         }
@@ -776,9 +814,10 @@ class PrimaryExpAST : public BaseAST{
         enum {def_bracketexp, def_number, def_lval, def_array} def;
         BaseASTPtr subExp;
         std::string lVal;
-        std::string arrayIdent; //lab9
+        std::string arrayIdent; // for lv9
         MulVecType expArray; 
         int32_t number;
+
         std::string Dump() const override{
             std::string retValue = "";
             if(def == def_bracketexp){
@@ -814,6 +853,7 @@ class PrimaryExpAST : public BaseAST{
                     retValue = it->Dump();
                     newSymName = getNewSymName();
                     if (isParam[symName]){
+                        // std::cout << "// isParam[symName] 1\n";
                         std::string nextNewSymNAme = getNewSymName();
                         std::cout << "\t" << newSymName << " = load " << symName << "\n";
                         std::cout << "\t" << nextNewSymNAme << " = getptr " << newSymName << ", " << retValue << "\n";
@@ -821,6 +861,7 @@ class PrimaryExpAST : public BaseAST{
                         symName = newSymName;
                     }
                     else{
+                        // std::cout << "// not isParam[symName] 1\n";
                         std::cout << "\t" << newSymName << " = getelemptr " << symName << ", " << retValue << "\n";
                         symName = newSymName;
                     }
@@ -831,7 +872,8 @@ class PrimaryExpAST : public BaseAST{
                 }
                 else if (isArrayLocal || isOldSymNameParam){
                     retValue = getNewSymName();
-                    std::cout << "\t" << retValue << " = getelemptr " << symName << ", 0\n";//for debug
+                    // std::cout << "// isArrayLocal || isOldSymNameParam 1\n";
+                    std::cout << "\t" << retValue << " = getelemptr " << symName << ", 0\n";
                 }
                 else retValue = newSymName;
             }
@@ -881,6 +923,7 @@ class UnaryExpAST : public BaseAST{
                 return "%" + std::to_string(varNum++);
             }
             else if(def == def_func){
+                // Generate codes to get parameters
                 FuncInfo funcInfo = FuncInfoList[ident];
                 std::string lastIR = "";
                 std::vector<std::string> params;
@@ -889,10 +932,11 @@ class UnaryExpAST : public BaseAST{
                 std::cout << "\t";
                 if (funcInfo.retType == "int"){
                     lastIR = getNewSymName();
-                    std::cout << lastIR << " = ";//?
+                    std::cout << lastIR << " = ";
                 }
                 std::cout << "call @" << ident << "(";
 
+                // Print parameters
                 for (int32_t i = 0; i < params.size(); i++){
                     if(i != params.size() - 1)
                         std::cout << params[i] << ", "; 
@@ -931,11 +975,14 @@ class MulExpAST : public BaseAST{
         std::string op;
         BaseASTPtr mulExp;
         BaseASTPtr subExp;
+        
         std::string Dump() const override{
             if (op == ""){ 
+                // MulExp := UnaryExp
                 return subExp->Dump();
             }
             else{
+                // MulExp := MulExp MulOp UnaryExp
                 std::string mulexp = mulExp->Dump();
                 std::string subexp = subExp->Dump();
                 if (op == "*") {
@@ -983,9 +1030,11 @@ class AddExpAST : public BaseAST{
         std::string Dump() const override
         {
             if (op == ""){ 
+                // AddExp := MulExp
                 return subExp->Dump();
             }
             else{
+                // AddExp := AddExp AddOp MulExp
                 std::string addexp = addExp->Dump();
                 std::string subexp = subExp->Dump();
                 if (op == "+") {
@@ -1025,9 +1074,11 @@ class RelExpAST : public BaseAST{
 
         std::string Dump() const override{
             if (op == ""){ 
+                // RelExp := AddExp
                 return subExp->Dump();
             }
             else{
+                // RelExp := RelExp RELOP AddExp
                 std::string relexp = relExp->Dump();
                 std::string subexp = subExp->Dump();
                 if (op == "<") {
@@ -1081,9 +1132,11 @@ class EqExpAST : public BaseAST{
 
         std::string Dump() const override{
             if (op == ""){ 
+                // EqExp := RelExp
                 return subExp->Dump();
             }
             else{
+                // EqExp := EqExp EQOP RelExp
                 std::string eqexp = eqExp->Dump();
                 std::string subexp = subExp->Dump();
                 if (op == "==") {
@@ -1123,9 +1176,11 @@ class LAndExpAST : public BaseAST{
 
         std::string Dump() const override{
             if (op == ""){ 
+                // LAndExp := EqExp
                 return subExp->Dump();
             }
             
+            // LAndExp := LAndExp LANDOP EqExp
             assert(op == "&&");
             std::string lhs = lAndExp->Dump();
             std::string thenTag = thenString + std::to_string(ifElseNum);
@@ -1173,6 +1228,7 @@ class LOrExpAST : public BaseAST{
                 return subExp->Dump();
             }
             
+            // LOrExp := LOrExp LOROP LAndExp
             assert(op == "||");
             std::string lhs = lOrExp->Dump();
             std::string thenTag = thenString + std::to_string(ifElseNum);
@@ -1262,6 +1318,7 @@ static int32_t getArraySize(std::vector<int32_t> offset, int32_t curNum){
     return retValue;
 }
 
+// isVarArray = 1 -> varArrayNum, isVarArray = 0 ->constArrayNum
 static std::string ArrayInit(std::vector<int32_t> lens, std::string lastSymName, int32_t d, int32_t isVarDef) {
     if (d >= lens.size()){
         int32_t thisVal;
@@ -1274,12 +1331,14 @@ static std::string ArrayInit(std::vector<int32_t> lens, std::string lastSymName,
     }
     for (int32_t i = 0; i < lens[d]; i++){
         std::string symName = getNewSymName();
+        // std::cout << "// ArrayInit: loop" << i << "\n";
         std::cout << "\t" << symName << " = getelemptr " << lastSymName << ", " << i << "\n";
         ArrayInit(lens, symName, d + 1, isVarDef);
     }
     return "";
 }
 
+// isVarArray = 1 -> varArrayNum, isVarArray = 0 ->constArrayNum
 static void printArrayInit(std::vector<int32_t> lens, int32_t d, int32_t isVarDef){
     if (d >= lens.size()){
         if(isVarDef){
