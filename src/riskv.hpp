@@ -8,25 +8,6 @@ void Visit(const koopa_raw_program_t &program) {
     Visit(program.funcs);
 }
 
-void Visit(const koopa_raw_slice_t &slice) {
-    for (size_t i = 0; i < slice.len; ++i) {
-        auto ptr = slice.buffer[i];
-        switch (slice.kind) {
-            case KOOPA_RSIK_FUNCTION:
-                Visit(reinterpret_cast<koopa_raw_function_t>(ptr));
-                break;
-            case KOOPA_RSIK_BASIC_BLOCK:
-                Visit(reinterpret_cast<koopa_raw_basic_block_t>(ptr));
-                break;
-            case KOOPA_RSIK_VALUE:
-                Visit(reinterpret_cast<koopa_raw_value_t>(ptr));
-                break;
-            default:
-                assert(false);
-        }
-    }
-}
-
 void Visit(const koopa_raw_function_t &func) {
     if(func->bbs.len == 0) // do nothing
         return;
@@ -78,6 +59,27 @@ void Visit(const koopa_raw_function_t &func) {
     RegInfoMap.clear();
 }
 
+
+void Visit(const koopa_raw_slice_t &slice) {
+    for (size_t i = 0; i < slice.len; ++i) {
+        auto ptr = slice.buffer[i];
+        switch (slice.kind) {
+            case KOOPA_RSIK_FUNCTION:
+                Visit(reinterpret_cast<koopa_raw_function_t>(ptr));
+                break;
+            case KOOPA_RSIK_BASIC_BLOCK:
+                Visit(reinterpret_cast<koopa_raw_basic_block_t>(ptr));
+                break;
+            case KOOPA_RSIK_VALUE:
+                Visit(reinterpret_cast<koopa_raw_value_t>(ptr));
+                break;
+            default:
+                assert(false);
+        }
+    }
+}
+
+
 // 基本快
 void Visit(const koopa_raw_basic_block_t &bb) {
     assert(bb->name);
@@ -116,29 +118,29 @@ RegInfo Visit(const koopa_raw_value_t &value) {
             StackTop += calTypeSize(value->ty->data.pointer.base);
             RegInfoMap[value] = lastReg;
             break;
-        case KOOPA_RVT_GLOBAL_ALLOC:
-            GlobalVarTab[value] = Visit(value->kind.data.global_alloc);
-            break;
         case KOOPA_RVT_LOAD:
             RegInfoMap[value] = lastReg = Visit(value->kind.data.load);
+            break;
+        case KOOPA_RVT_GLOBAL_ALLOC:
+            GlobalVarTab[value] = Visit(value->kind.data.global_alloc);
             break;
         case KOOPA_RVT_STORE:
             Visit(value->kind.data.store);
             break;
-        case KOOPA_RVT_GET_PTR:
-            RegInfoMap[value] = lastReg = Visit(value->kind.data.get_ptr);
-            break;
         case KOOPA_RVT_GET_ELEM_PTR:
             RegInfoMap[value] = lastReg = Visit(value->kind.data.get_elem_ptr);
             break;
+        case KOOPA_RVT_GET_PTR:
+            RegInfoMap[value] = lastReg = Visit(value->kind.data.get_ptr);
+            break;
         case KOOPA_RVT_BINARY:
             RegInfoMap[value] = lastReg = Visit(value->kind.data.binary);
-            break;
-        case KOOPA_RVT_BRANCH:
-            Visit(value->kind.data.branch);
             break;  
         case KOOPA_RVT_JUMP:
             Visit(value->kind.data.jump);
+            break;
+        case KOOPA_RVT_BRANCH:
+            Visit(value->kind.data.branch);
             break;
         case KOOPA_RVT_CALL:
             RegInfoMap[value] = lastReg = Visit(value->kind.data.call);
@@ -170,8 +172,7 @@ RegInfo Visit(const koopa_raw_return_t &ret){
         if (actualSize >= -2048 && actualSize < 2048)
             std::cout << "\tlw      ra, " << actualSize << "(sp)\n";
         else{
-            std::cout << "\tli      t0, " << actualSize << "\n";
-            std::cout << "\tadd     t0, sp, t0\n";
+            std::cout << "\tli      t0, " << actualSize << "\n";std::cout << "\tadd     t0, sp, t0\n";
             std::cout << "\tlw      ra, (t0)\n";
         }
     }
@@ -191,6 +192,7 @@ RegInfo Visit(const koopa_raw_integer_t &integer){
         return RegInfo(X0, -1);
     }
     int32_t regNum = chooseReg(low, CurValue);
+    
     moveToReg(integer.value, RegName[regNum]);
     return RegInfo(regNum, -1);
 }
@@ -201,6 +203,7 @@ std::string getStringNameForBinary(const koopa_raw_value_t &value){
     RegInfo regInfo = Visit(value);
     if(lastStat != -1)
         RegStatus[lasregnum] = lastStat;
+    
     lastStat = RegStatus[regInfo.regnum];
     RegStatus[regInfo.regnum] = high;
     lasregnum = regInfo.regnum;
@@ -211,14 +214,16 @@ RegInfo Visit(const koopa_raw_binary_t &binary){
     lastStat = -1;
     std::string lhsRegName = getStringNameForBinary(binary.lhs);
     std::string rhsRegName = getStringNameForBinary(binary.rhs);
+    
     int32_t ansRegnum = chooseReg(mid, CurValue);
     RegStatus[lasregnum] = lastStat;
     RegInfo ansReg = RegInfo(ansRegnum, -1);
 
     std::string ansRegName = RegName[ansReg.regnum];
-
     std::string inst;
-    switch(binary.op){
+    
+    switch(binary.op)
+    {
         case KOOPA_RBO_NOT_EQ:
             if (lhsRegName == "x0"){
                 std::cout << "\tsnez    " << ansRegName << ", " << rhsRegName << "\n";
@@ -245,11 +250,6 @@ RegInfo Visit(const koopa_raw_binary_t &binary){
                 std::cout << "\tseqz    " << ansRegName << ", " << ansRegName << "\n";
             }
             return ansReg;
-        case KOOPA_RBO_GE:
-            std::cout << "\tslt     " << ansRegName << ", " << lhsRegName << ", "
-                      << rhsRegName << "\n";
-            std::cout << "\txori    " << ansRegName << ", " << ansRegName << ", 1\n";
-            return ansReg;
         case KOOPA_RBO_LE:
             std::cout << "\tsgt     " << ansRegName << ", " << lhsRegName << ", "
                       << rhsRegName << "\n";
@@ -258,17 +258,13 @@ RegInfo Visit(const koopa_raw_binary_t &binary){
         case KOOPA_RBO_GT:
             inst = "sgt     ";
             break;
+        case KOOPA_RBO_GE:
+            std::cout << "\tslt     " << ansRegName << ", " << lhsRegName << ", "
+                      << rhsRegName << "\n";
+            std::cout << "\txori    " << ansRegName << ", " << ansRegName << ", 1\n";
+            return ansReg;
         case KOOPA_RBO_LT:
             inst = "slt     ";
-            break;
-        case KOOPA_RBO_ADD:
-            inst = "add     ";
-            break;
-        case KOOPA_RBO_SUB:
-            inst = "sub     ";
-            break;
-        case KOOPA_RBO_MUL:
-            inst = "mul     ";
             break;
         case KOOPA_RBO_DIV:
             inst = "div     ";
@@ -281,6 +277,15 @@ RegInfo Visit(const koopa_raw_binary_t &binary){
             break;
         case KOOPA_RBO_OR:
             inst = "or      ";
+            break;
+        case KOOPA_RBO_ADD:
+            inst = "add     ";
+            break;
+        case KOOPA_RBO_SUB:
+            inst = "sub     ";
+            break;
+        case KOOPA_RBO_MUL:
+            inst = "mul     ";
             break;
         case KOOPA_RBO_XOR:
             inst = "xor     ";
@@ -298,7 +303,6 @@ RegInfo Visit(const koopa_raw_binary_t &binary){
             assert(0); 
     }
     std::cout << "\t" << inst << ansRegName << ", " << lhsRegName << ", " << rhsRegName << "\n";
-
     return ansReg;
 }
 
@@ -361,9 +365,8 @@ RegInfo Visit(const koopa_raw_store_t &store){
         for (int32_t i = 0; i < REGNUM; i++){
             if (i != regNum && RegStatus[i] > low && 
                     RegInfoMap[RegValue[i]].offset == RegInfoMap[store.dest].offset){
-                RegStatus[i] = low; // These regs are safe to use. No need to store old data. 
+                RegStatus[i] = low; //not old data
                 RegInfoMap[RegValue[i]].regnum = regNum;
-                // std::cout << "// Reg " << RegName[i] << "\n";
             }
         }
     }
@@ -378,18 +381,18 @@ RegInfo Visit(const koopa_raw_store_t &store){
     return regInfo;
 }
 
+RegInfo Visit(const koopa_raw_jump_t &jump){
+    resetRegs(0);
+    std::cout << "\tj     " << (jump.target->name + 1) << "\n";
+    return RegInfo();
+}
+
 RegInfo Visit(const koopa_raw_branch_t &branch){
     RegInfo regInfo = Visit(branch.cond);
     resetRegs(0);
     std::cout << "\tbnez    " << RegName[regInfo.regnum] << ", " << (branch.true_bb->name + 1) << "\n";
     std::cout << "\tj       " << (branch.false_bb->name + 1) << "\n";
     return regInfo;
-}
-
-RegInfo Visit(const koopa_raw_jump_t &jump){
-    resetRegs(0);
-    std::cout << "\tj     " << (jump.target->name + 1) << "\n";
-    return RegInfo();
 }
 
 RegInfo Visit(const koopa_raw_call_t &call){
@@ -399,7 +402,6 @@ RegInfo Visit(const koopa_raw_call_t &call){
     resetRegs(1);
     int32_t stackRegNum = call.args.len > 8 ? 8 : call.args.len;
     for (int32_t i = 0; i < stackRegNum; i++){
-        // RegName[i+7]: the ith parameter
         auto ptr = call.args.buffer[i];
         koopa_raw_value_t value = reinterpret_cast<koopa_raw_value_t>(ptr);
         RegInfo lastReg = Visit(value);
@@ -421,6 +423,7 @@ RegInfo Visit(const koopa_raw_call_t &call){
                 std::cout << "\tsw      " << RegName[lastRegNum] << ", " << paramOffset << "(sp)\n";
             else{
                 std::cout << "\tli      s11, " << paramOffset << "\n";
+               
                 std::cout << "\tadd     s11, s11, sp" << "\n";
                 std::cout << "\tsw      " << RegName[lastRegNum] << ", (s11)\n";
             }
@@ -435,6 +438,7 @@ RegInfo Visit(const koopa_raw_call_t &call){
 std::string Visit(const koopa_raw_global_alloc_t &global_alloc){
     std::string symName = GlobalAllocString + std::to_string(GlobalVarCount++);
     std::cout << "\t.data\n";
+    
     std::cout << "\t.globl " << symName << "\n";
     std::cout << symName << ":\n";
     if(global_alloc.init->kind.tag == KOOPA_RVT_ZERO_INIT){
@@ -455,10 +459,12 @@ RegInfo Visit(const koopa_raw_get_ptr_t &ptr){
     RegInfo srcReg = RegInfoMap[ptr.src];
     int32_t curRegNum, srcRegNum = srcReg.regnum;
     int32_t regNum = chooseReg(high, CurValue);
+    
     RegInfo regInfo = {regNum, -1};
     RegInfo indexReg = Visit(ptr.index);
     int32_t indexRegNum = indexReg.regnum;
     int32_t ptrSize = calTypeSize(ptr.src->ty->data.pointer.base);
+    
     if (indexRegNum != X0 && ptrSize != 0){
         int32_t prevStatus = RegStatus[indexRegNum];
         RegStatus[indexRegNum] = high;
@@ -479,6 +485,7 @@ RegInfo Visit(const koopa_raw_get_elem_ptr_t &ptr){
     int32_t ptrSize = 
         calTypeSize(ptr.src->ty->data.pointer.base) / ptr.src->ty->data.pointer.base->data.array.len;
     int32_t regNum = chooseReg(high, CurValue), indexRegNum;
+
     RegInfo regInfo(regNum, -1), indexReg;
     if (ptr.src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC){
         indexReg = Visit(ptr.index);
@@ -487,7 +494,6 @@ RegInfo Visit(const koopa_raw_get_elem_ptr_t &ptr){
         std::cout << "\tmul     s11, s11, " << RegName[indexReg.regnum] << "\n";
         std::cout << "\tadd     " << RegName[regNum] << ", " << RegName[regNum] << ", s11\n";
     }
-    
     else{
         RegInfo srcReg = RegInfoMap[ptr.src];
         int32_t curRegNum, srcRegNum = srcReg.regnum, prevStatus;
@@ -508,7 +514,6 @@ RegInfo Visit(const koopa_raw_get_elem_ptr_t &ptr){
             prevStatus = RegStatus[srcRegNum];
             RegStatus[srcRegNum] = high;
         }
-
         indexReg = Visit(ptr.index);
         indexRegNum = indexReg.regnum;
         if (indexRegNum != X0 && ptrSize != 0){
@@ -521,7 +526,6 @@ RegInfo Visit(const koopa_raw_get_elem_ptr_t &ptr){
                                         RegName[indexRegNum] <<"\n";
         }
         else curRegNum = X0;
-        
         if (fromVariable){
             std::cout << "\tadd     " << RegName[regNum] << ", " << RegName[regNum] << ", " << 
                                         RegName[curRegNum] << "\n";
