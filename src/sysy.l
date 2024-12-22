@@ -13,22 +13,20 @@ using namespace std;
 
 %}
 
-/* White space & comments */
+/* 空白符和注释 */
 WhiteSpace    [ \t\n\r]*
 LineComment   "//".*
 BlockComment  "/*"([^*]*|(\*+[^/]))*"*/"
 
-/* Identifier */
+/* 标识符 */
 Identifier    [a-zA-Z_][a-zA-Z0-9_]*
 
-/* Integer */
+/* 整数字面量 */
 Decimal       [1-9][0-9]*
 Octal         0[0-7]*
 Hexadecimal   0[xX][0-9a-fA-F]+
 
-/* Operator */
 UnaryOperator \!  
-/* We handle unary operators '+' and '-' as binary operator. See sysy.y for more detail. */
 MulOperator   \*|\/|\%
 AddOperator   \+|\-
 RelOperator   <|>|<=|>=
@@ -39,9 +37,9 @@ LOrOperator   \|\|
 
 %%
 
-{WhiteSpace}    { /* do nothing */ }
-{LineComment}   { /* do nothing */ }
-{BlockComment}  { /* do nothing */ }
+{WhiteSpace}    { /* 忽略, 不做任何操作 */ }
+{LineComment}   { /* 忽略, 不做任何操作 */ }
+{BlockComment}  { /* 忽略, 不做任何操作 */ }
 
 "int"           { return INT; }
 "return"        { return RETURN; }
