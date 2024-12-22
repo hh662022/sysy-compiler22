@@ -1,24 +1,22 @@
 #pragma once
 #include<iostream>
 #include<string>
+#include<cmath>
+#include "koopa.h"
 #include<cstring>
 #include<cassert>
 #include<map>
 #include<unordered_map>
-#include<cmath>
-#include "koopa.h"
-
 #define REGNUM 16
-#define X0 15
-#define A0 7
 
 const std::string GlobalAllocString = "_global_alloc_";
 
+#define X0 15
+#define A0 7
 class RegInfo {
     public:
         int32_t regnum = -1;
         int32_t offset = -1; 
-
         RegInfo(){};
         RegInfo(int32_t rn, int32_t ofs): regnum(rn), offset(ofs) {}
 
@@ -30,12 +28,11 @@ class RegInfo {
 std::unordered_map<koopa_raw_value_t, RegInfo> RegInfoMap;
 
 koopa_raw_value_t RegValue[16];
-std::string RegName[16] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2",
-                           "a3", "a4", "a5", "a6", "a7", "x0"};
-int32_t RegStatus[16] = {};
 int32_t FrameSize = 0;
 int32_t StackTop = 0;
 uint32_t maxArgNum;
+std::string RegName[16] = {"t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2","a3", "a4", "a5", "a6", "a7", "x0"};
+int32_t RegStatus[16] = {};
 koopa_raw_value_t CurValue, PreValue;
 bool saveRA = 0;
 int32_t lastOffset = -1;
@@ -44,9 +41,6 @@ int32_t GlobalVarCount = 0;
 std::unordered_map<koopa_raw_value_t, std::string> GlobalVarTab;
 
 void Visit(const koopa_raw_program_t &program);
-void Visit(const koopa_raw_slice_t &slice);
-void Visit(const koopa_raw_function_t &func);
-void Visit(const koopa_raw_basic_block_t &bb);
 RegInfo Visit(const koopa_raw_value_t &value);
 RegInfo Visit(const koopa_raw_return_t &ret);
 RegInfo Visit(const koopa_raw_integer_t &integer);
@@ -59,7 +53,9 @@ RegInfo Visit(const koopa_raw_call_t &call);
 std::string Visit(const koopa_raw_global_alloc_t &global_alloc);
 RegInfo Visit(const koopa_raw_get_elem_ptr_t &ptr);
 RegInfo Visit(const koopa_raw_get_ptr_t &ptr);
-
+void Visit(const koopa_raw_slice_t &slice);
+void Visit(const koopa_raw_function_t &func);
+void Visit(const koopa_raw_basic_block_t &bb);
 void moveToReg(koopa_raw_value_t val, std::string reg){
     if (val->kind.tag == KOOPA_RVT_INTEGER)
         std::cout << "\tli      " << reg << ", " << val->kind.data.integer.value << "\n";
@@ -76,6 +72,7 @@ void moveToReg(std::string reg1, std::string reg2){
 enum Priority {low = 0, mid = 1, high = 2};
 
 int32_t chooseReg(int32_t stat, koopa_raw_value_t value){
+    
     for(int32_t i = 0; i < REGNUM - 1; i++)
         if(RegStatus[i] == low){
             RegStatus[i] = stat;
@@ -83,8 +80,10 @@ int32_t chooseReg(int32_t stat, koopa_raw_value_t value){
             return i;
         }
 
-    for(int32_t i = 0; i < REGNUM - 1; i++){
-        if(RegStatus[i] == mid){
+    for(int32_t i = 0; i < REGNUM - 1; i++)
+    {
+        if(RegStatus[i] == mid)
+        {
             koopa_raw_value_t preVal = RegValue[i];
             RegInfoMap[preVal].regnum = -1;
             int32_t varOffset = RegInfoMap[preVal].offset;
@@ -96,7 +95,8 @@ int32_t chooseReg(int32_t stat, koopa_raw_value_t value){
             if (varOffset >= -2048 && varOffset < 2048){
                 std::cout << "\tsw      " << RegName[i] << ", " << varOffset <<"(sp)\n";
             }
-            else{
+            else
+            {
                 std::cout << "\tli      s11, " << varOffset << "\n";
                 std::cout << "\tadd     s11, s11, sp\n";
                 std::cout << "\tsw      " << RegName[i] << ", (s11)\n";
@@ -109,7 +109,8 @@ int32_t chooseReg(int32_t stat, koopa_raw_value_t value){
     return -1;
 }
 
-int32_t calTypeSize(const koopa_raw_type_t &ty){
+int32_t calTypeSize(const koopa_raw_type_t &ty)
+{
     switch(ty->tag){
         case KOOPA_RTT_UNIT:
             return 0;
@@ -126,7 +127,8 @@ int32_t calTypeSize(const koopa_raw_type_t &ty){
 
 int32_t calInsSize(const koopa_raw_value_t &value)
 {
-    if (value->kind.tag == KOOPA_RVT_CALL){
+    if (value->kind.tag == KOOPA_RVT_CALL)
+    {
         uint32_t argNum = value->kind.data.call.args.len;
         if (argNum > maxArgNum)
             maxArgNum = argNum;
@@ -152,13 +154,15 @@ int32_t calBlockSize(const koopa_raw_basic_block_t &bb)
 
 void calFrameSize(const koopa_raw_function_t &func){
     FrameSize = StackTop = maxArgNum = 0;
-    for (int32_t i = 0; i < func->bbs.len; i++){
+    for (int32_t i = 0; i < func->bbs.len; i++)
+    {
         auto ptr1 = func->bbs.buffer[i];
         koopa_raw_basic_block_t bb = reinterpret_cast<koopa_raw_basic_block_t>(ptr1);
         for (int32_t j = 0; j < bb->insts.len; j++){
             auto ptr2 = bb->insts.buffer[j];
             koopa_raw_value_t inst = reinterpret_cast<koopa_raw_value_t>(ptr2);
-            if (inst->ty->tag != KOOPA_RTT_UNIT){
+            if (inst->ty->tag != KOOPA_RTT_UNIT)
+            {
                 if (inst->kind.tag == KOOPA_RVT_ALLOC)
                     FrameSize += calTypeSize(inst->ty->data.pointer.base);
                 else FrameSize += 4;
@@ -171,11 +175,13 @@ void calFrameSize(const koopa_raw_function_t &func){
         }
     }
     
-    if(maxArgNum > 8){ 
+    if(maxArgNum > 8)
+    { 
         FrameSize += (maxArgNum - 8) * 4;
         StackTop += (maxArgNum - 8) * 4;
     }
     FrameSize += saveRA ? 4 : 0;
+    //FrameSize = (FrameSize + 15) / 16 * 16;
     FrameSize = (FrameSize + 15) / 16 * 16;
     return;
 }
@@ -204,7 +210,8 @@ void resetRegs(bool store_to_stack){
         }
 }
 
-inline void printStackSize(){
+inline void printStackSize()
+{
     std::cout << "// StackTop=" << StackTop << ", FrameSize=" << FrameSize << "\n";
     return;
 }
@@ -212,6 +219,7 @@ inline void printStackSize(){
 inline void printRegStatus(){
     return;
     std::cout << "// ";
+    
     for(int i = 0; i < REGNUM; i++)
         std::cout << RegStatus[i] << ",";
     std::cout << "\n";
