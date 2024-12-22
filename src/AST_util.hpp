@@ -12,14 +12,15 @@
 
 class BaseAST;
 class InitValAST;
-typedef std::unordered_map<std::string, SymTabEntry> SymTabType; 
-typedef std::vector<BaseASTPtr> MulVecType;
 typedef std::unique_ptr<BaseAST> BaseASTPtr;
 typedef std::variant<int, std::string> SymTabEntry;
+typedef std::unordered_map<std::string, SymTabEntry> SymTabType; // Map ident to integer value / @ident_Num
+typedef std::vector<BaseASTPtr> MulVecType;
+
 typedef struct {
+    std::string ident;
     std::string name;
-    std::string type;  
-    std::string ident;     
+    std::string type;       
 }ParamInfo;
 
 typedef struct{
