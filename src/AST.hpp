@@ -1,62 +1,62 @@
 #pragma once
 #include"AST_util.hpp"
 
-
-static const std::string thenString = "\%_then_";
-static const std::string elseString = "\%_else_";
-static const std::string endString = "\%_end_"; 
 static const std::string whileEntryString = "\%_while_entry_";
 static const std::string whileBodyString = "\%_while_body_";
 static const std::string whileEndString = "\%_while_end_";
+static const std::string thenString = "\%_then_";
+static const std::string elseString = "\%_else_";
+static const std::string endString = "\%_end_"; 
 
-static int32_t varNum = 0;
 static int32_t ifElseNum = 0, whileNum = 0;
 static bool isRetInt = 1;
-static int32_t varArrayNum = 0, constArrayNum = 0;
+static int32_t varArrayNum = 0, constArrayNum = 0, int32_t varNum = 0;
 
+static std::unordered_map<std::string, int32_t> ArrayDimension; 
+static std::unordered_map<std::string, bool> isArrayGlobal; 
+static std::vector<int32_t> ArrayInitVals;
 static std::vector<SymTabType> symTabs;
 static std::unordered_map<std::string, bool> isParam; 
 static std::unordered_map<std::string, int32_t> symNameCount; 
 static std::vector<int32_t> whileTab; 
 static std::unordered_map<std::string, FuncInfo> FuncInfoList; 
-static std::unordered_map<std::string, int32_t> ArrayDimension; 
-static std::unordered_map<std::string, bool> isArrayGlobal; 
-static std::vector<int32_t> ArrayInitVals;
+
 
 static inline SymTabEntry symTabs_lookup(std::string lval);
 static std::string getNewSymName();
 static void libFuncDecl();
-
-static std::string getArrayType(const std::vector<int32_t> *lens, int32_t d);
-static int32_t getArraySize(std::vector<int32_t> offset, int32_t now_num);
 static std::string ArrayInit(std::vector<int32_t> lens, std::string lastSymName, int32_t d, int32_t isVarDef);
 static void printArrayInit(std::vector<int32_t> lens, int32_t d, int32_t isVarDef);
 static std::vector<int32_t> getProduct(std::vector<int32_t> vec);
+static std::string getArrayType(const std::vector<int32_t> *lens, int32_t d);
+static int32_t getArraySize(std::vector<int32_t> offset, int32_t now_num);
+
 
 // 基类
 class BaseAST {
     public:
-    bool isEmptyInitArray = 0; 
     int32_t arrayDimension = -1; 
+    bool isEmptyInitArray = 0; 
     virtual ~BaseAST() = default;
 
-    virtual std::string Dump() const{ assert(0); return 0; }
-    virtual std::string DumpArray() const{ assert(0); return 0; } 
-    virtual std::string DumpGlobal() const{ assert(0); return ""; }
-    virtual std::string DumpGlobalArray() const{ assert(0); return ""; }
     virtual int32_t CalValue() const{ assert(0); return -1; }
     virtual std::string GetIdent() const{ assert(0); return ""; }
     virtual std::string GetType() const{ assert(0); return ""; }
     virtual std::string TypeOfAST() const{ return ""; }
+    virtual std::string Dump() const{ assert(0); return 0; }
+    virtual std::string DumpArray() const{ assert(0); return 0; } 
+    virtual std::string DumpGlobal() const{ assert(0); return ""; }
+    virtual std::string DumpGlobalArray() const{ assert(0); return ""; }
+    
     virtual std::vector<int32_t> GetArrayInitVals(std::vector<int32_t>) const{ 
         assert(0); return std::vector<int32_t>(); }
     virtual bool GetIsArray() const { assert(0); return 0;}
 };
 
 class CompUnitAST : public BaseAST {
-    public:
-        MulVecType funcDefs;
+    public:        
         MulVecType decls;
+        MulVecType funcDefs;
         std::string Dump() const override {
             libFuncDecl(); 
             SymTabType globalSymTab;
@@ -72,10 +72,10 @@ class CompUnitAST : public BaseAST {
 
 class FuncDefAST : public BaseAST {
     public:
-        std::string funcType;
         std::string ident;
         BaseASTPtr block;
         MulVecType funcFParams;
+        std::string funcType;
 
         std::string Dump() const override {
             FuncInfo funcInfo;
@@ -129,9 +129,9 @@ class FuncDefAST : public BaseAST {
 class FuncFParamAST : public BaseAST {
     public:
         enum {def_common, def_array} def;
-        std::string bType;
         std::string ident;
         MulVecType constExpArray;
+        std::string bType;
 
         std::string Dump() const override{
             if(symNameCount.count(ident) == 0){
@@ -148,7 +148,6 @@ class FuncFParamAST : public BaseAST {
             if(def == def_common)
                 return "i32";
             
-            // for lv9
             assert(arrayDimension != -1);
             std::vector<int32_t> lens;
             for(auto &&it : constExpArray)
@@ -198,11 +197,10 @@ class ConstDeclAST : public BaseAST{
 
 class ConstDefAST : public BaseAST{
     public:
+        bool isArray = 0;
         std::string ident;
         BaseASTPtr constInitVal;
         MulVecType constExpArray;
-        bool isArray = 0;
-
         std::string Dump() const override { 
             if(!constExpArray.empty()){// for lv9
                 DumpArray();
@@ -394,10 +392,10 @@ class VarDeclAST : public BaseAST{
 
 class VarDefAST : public BaseAST{
     public:
-        std::string ident;
         BaseASTPtr initVal;
         bool isInitialized = 0;
         MulVecType constExpArray;
+        std::string ident;
 
         std::string Dump() const override { 
             if(!constExpArray.empty()) {// for lv9 Arrays
@@ -523,10 +521,9 @@ class VarDefAST : public BaseAST{
 
 class InitValAST : public BaseAST{
     public:
-        BaseASTPtr subExp;
         MulVecType initVals;
         bool isArray = 0;
-
+        BaseASTPtr subExp;
         std::string Dump() const override {
             if(!isArray)
                 return subExp->Dump();
@@ -754,7 +751,6 @@ class StmtAST : public BaseAST {
 class ConstExpAST : public BaseAST{
     public:
         BaseASTPtr subExp;
-
         std::string Dump() const override{
             return std::to_string(subExp->CalValue());
         }
@@ -780,10 +776,9 @@ class PrimaryExpAST : public BaseAST{
         enum {def_bracketexp, def_number, def_lval, def_array} def;
         BaseASTPtr subExp;
         std::string lVal;
-        std::string arrayIdent; // for lv9
+        std::string arrayIdent; //lab9
         MulVecType expArray; 
         int32_t number;
-
         std::string Dump() const override{
             std::string retValue = "";
             if(def == def_bracketexp){
@@ -836,7 +831,7 @@ class PrimaryExpAST : public BaseAST{
                 }
                 else if (isArrayLocal || isOldSymNameParam){
                     retValue = getNewSymName();
-                    std::cout << "\t" << retValue << " = getelemptr " << symName << ", 0\n";
+                    std::cout << "\t" << retValue << " = getelemptr " << symName << ", 0\n";//for debug
                 }
                 else retValue = newSymName;
             }
@@ -894,7 +889,7 @@ class UnaryExpAST : public BaseAST{
                 std::cout << "\t";
                 if (funcInfo.retType == "int"){
                     lastIR = getNewSymName();
-                    std::cout << lastIR << " = ";
+                    std::cout << lastIR << " = ";//?
                 }
                 std::cout << "call @" << ident << "(";
 
@@ -936,7 +931,6 @@ class MulExpAST : public BaseAST{
         std::string op;
         BaseASTPtr mulExp;
         BaseASTPtr subExp;
-        
         std::string Dump() const override{
             if (op == ""){ 
                 return subExp->Dump();
@@ -989,7 +983,6 @@ class AddExpAST : public BaseAST{
         std::string Dump() const override
         {
             if (op == ""){ 
-                // AddExp := MulExp
                 return subExp->Dump();
             }
             else{
@@ -1130,7 +1123,6 @@ class LAndExpAST : public BaseAST{
 
         std::string Dump() const override{
             if (op == ""){ 
-                // LAndExp := EqExp
                 return subExp->Dump();
             }
             
