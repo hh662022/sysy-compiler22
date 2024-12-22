@@ -14,7 +14,7 @@
 #include<map>
 #include "AST.hpp"
 
-// 声明 lexer 函数和错误处理函数
+// lexer
 int yylex();
 void yyerror(BaseASTPtr &ast, const char *s);
 
@@ -31,12 +31,10 @@ using namespace std;
   MulVecType *mul_val;
 }
 
-// 所有 token 种类的声明
 %token INT RETURN CONST VOID IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT UNARYOP MULOP ADDOP RELOP EQOP LANDOP LOROP
 %token <int_val> INT_CONST
 
-// 非终结符类型
 %type <ast_val> CompUnitList FuncFParam
 %type <int_val> Number
 %type <str_val> Type LVal
