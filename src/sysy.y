@@ -37,14 +37,15 @@ using namespace std;
 %token <int_val> INT_CONST
 
 // 非终结符类型
+%type <ast_val> CompUnitList FuncFParam
+%type <int_val> Number
+%type <str_val> Type LVal
 %type <ast_val> FuncDef Block BlockItem Stmt ComplexStmt OpenStmt ClosedStmt 
 %type <ast_val> Decl ConstDecl ConstDef ConstInitVal VarDecl VarDef InitVal
 %type <ast_val> Exp ConstExp PrimaryExp UnaryExp MulExp AddExp RelExp EqExp LAndExp LOrExp
 %type <mul_val> BlockItems ConstDefs VarDefs FuncFParams FuncRParams
 %type <mul_val> InitVals ConstInitVals ExpArray ConstExpArray
-%type <ast_val> CompUnitList FuncFParam
-%type <int_val> Number
-%type <str_val> Type LVal
+
 
 %%
 
@@ -226,6 +227,9 @@ ConstDef
   }
   ;
 
+
+
+
 ConstInitVal
   : ConstExp {
       auto const_init_val = new ConstInitValAST();
@@ -284,6 +288,8 @@ VarDefs
     $$ = var_defs;
   }
   ;
+
+
 
 VarDef
   : IDENT {
@@ -725,6 +731,7 @@ LOrExp
 
 %%
 
-void yyerror(BaseASTPtr &ast, const char *s) {
+void yyerror(BaseASTPtr &ast, const char *s) 
+{
     fprintf(stderr, "ERROR\n");
 }
